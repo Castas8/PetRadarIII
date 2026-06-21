@@ -50,8 +50,22 @@ export class FoundPetsService {
       ORDER BY distance ASC;
     `, [dto.lng, dto.lat]);
 
+    // El envío de correos corre en segundo plano (sin await) para no
+    // bloquear la respuesta HTTP si el SMTP tarda o falla.
+    this.sendMatchEmails(matches, dto).catch((err) =>
+      console.error('Error procesando alertas de correo:', err.message),
+    );
+
+    return {
+      message: 'Reporte creado y alertas procesadas',
+      found_id: result[0].id,
+      matches_found: matches.length,
+      nearby_lost_pets: matches,
+    };
+  }
+
+  private async sendMatchEmails(matches: any[], dto: CreateFoundPetDto) {
     for (const match of matches) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
       try {
         const mapUrl = `https://quickchart.io/map?width=600&height=300&zoom=15&center=${dto.lat},${dto.lng}&markers=color:red|label:P|${match.lat},${match.lng}&markers=color:blue|label:F|${dto.lat},${dto.lng}`;
         await this.mailerService.sendMail({
@@ -78,13 +92,6 @@ export class FoundPetsService {
         console.error(`Error al enviar a ${match.owner_email}:`, err.message);
       }
     }
-
-    return {
-      message: 'Reporte creado y alertas procesadas',
-      found_id: result[0].id,
-      matches_found: matches.length,
-      nearby_lost_pets: matches,
-    };
   }
 
   async findAll() {
